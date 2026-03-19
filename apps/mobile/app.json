@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "Earlybirds",
+    "slug": "earlybirds",
+    "scheme": "earlybirds",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": [
+      "**/*"
+    ]
+  }
+}
+
