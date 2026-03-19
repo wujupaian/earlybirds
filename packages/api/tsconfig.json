@@ -1,12 +1,17 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "outDir": "dist",
     "types": [
       "node"
     ]
   },
   "include": [
-    "src/**/*.ts"
+    "src/index.ts",
+    "src/domain.ts",
+    "src/repositories.ts",
+    "src/firebase/**/*.ts"
   ]
 }

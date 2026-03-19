@@ -8,9 +8,8 @@
   ],
   "scripts": {
     "dev:mobile": "npm --workspace @earlybirds/mobile run start",
-    "dev:api": "npm --workspace @earlybirds/api run dev",
-    "build": "npm run build -w @earlybirds/shared && npm run build -w @earlybirds/api",
-    "typecheck": "npm run typecheck -w @earlybirds/shared && npm run typecheck -w @earlybirds/api && npm run typecheck -w @earlybirds/mobile"
+    "dev:api": "npm --workspace @earlybirds/functions run emulate",
+    "build": "npm run build -w @earlybirds/shared && npm run build -w @earlybirds/functions",
+    "typecheck": "npm run typecheck -w @earlybirds/shared && npm run typecheck -w @earlybirds/functions && npm run typecheck -w @earlybirds/mobile"
   }
 }
-
