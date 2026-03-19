@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { StatusBar } from "expo-status-bar";
 import {
   Alert,
+  ActivityIndicator,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -10,7 +11,18 @@ import {
   View,
 } from "react-native";
 import { create } from "zustand";
-import { uploadFcmToken } from "./src/api";
+import * as Localization from "expo-localization";
+import {
+  getActiveChallenges,
+  getChallengeHistory,
+  getPaymentStatus,
+  initiateChallenge,
+  requestNonce,
+  updateTimezone,
+  uploadFcmToken,
+  verifyWallet,
+  type ChallengeSummary,
+} from "./src/api";
 import {
   registerForPushNotificationsAsync,
   scheduleLocalCheckinReminder,
@@ -30,49 +42,38 @@ type AppState = {
   authToken: string | null;
   walletAddress: string | null;
   timezone: string;
+  activeChallenge: ChallengeSummary | null;
   homeState: HomeState;
   dayNumber: number;
   rewardAmount: string;
-  connectWallet: () => void;
+  connectWallet: (payload: { walletAddress: string; authToken: string; timezone: string }) => void;
+  setActiveChallenge: (challenge: ChallengeSummary | null) => void;
   setAuthToken: (authToken: string | null) => void;
-  cycleState: () => void;
+  setHomeState: (state: HomeState) => void;
 };
-
-const orderedStates: HomeState[] = [
-  "no-active",
-  "pending-payment",
-  "active-countdown",
-  "active-window-open",
-  "checked-in",
-  "missed",
-  "completed",
-  "rewarded",
-];
 
 const useAppStore = create<AppState>((set, get) => ({
   authToken: null,
   walletAddress: null,
-  timezone: "Asia/Manila",
+  timezone: Localization.getCalendars()[0]?.timeZone ?? "Asia/Manila",
+  activeChallenge: null,
   homeState: "no-active",
   dayNumber: 3,
   rewardAmount: "0.22",
-  connectWallet: () =>
+  connectWallet: ({ walletAddress, authToken, timezone }) =>
     set({
-      walletAddress: "8jYt...k2Lm",
-      authToken: "replace-with-wallet-jwt",
+      walletAddress,
+      authToken,
+      timezone,
       homeState: "no-active",
     }),
+  setActiveChallenge: (activeChallenge) => set({ activeChallenge }),
   setAuthToken: (authToken) => set({ authToken }),
-  cycleState: () => {
-    const current = get().homeState;
-    const currentIndex = orderedStates.indexOf(current);
-    const next = orderedStates[(currentIndex + 1) % orderedStates.length];
-    set({ homeState: next });
-  },
+  setHomeState: (homeState) => set({ homeState }),
 }));
 
 function HomeCard() {
-  const { homeState, dayNumber, rewardAmount } = useAppStore();
+  const { homeState, dayNumber, rewardAmount, activeChallenge } = useAppStore();
 
   switch (homeState) {
     case "no-active":
@@ -87,7 +88,7 @@ function HomeCard() {
       return (
         <StateCard
           title="Waiting for payment confirmation"
-          body="Your Solana Pay transfer is being confirmed on-chain. This usually takes a few seconds."
+          body={`Challenge ${activeChallenge?.id.slice(0, 8) ?? ""} is waiting for Solana payment confirmation.`}
           accent="#a16207"
         />
       );
@@ -95,7 +96,7 @@ function HomeCard() {
       return (
         <StateCard
           title="Next check-in in 07:14:19"
-          body="Your window opens at 04:59 and closes at 05:01 in your challenge timezone."
+          body={`Challenge active. Your window opens at 04:59 and closes at 05:01 in ${activeChallenge?.timezone ?? "your timezone"}.`}
           accent="#1d4ed8"
         />
       );
@@ -152,20 +153,186 @@ function StateCard(props: { title: string; body: string; accent: string }) {
 }
 
 export default function App() {
-  const { authToken, walletAddress, timezone, connectWallet, cycleState } = useAppStore();
+  const {
+    authToken,
+    walletAddress,
+    timezone,
+    activeChallenge,
+    connectWallet,
+    setActiveChallenge,
+    setHomeState,
+  } = useAppStore();
   const [notificationState, setNotificationState] = useState<{
     permissionStatus?: string;
     devicePushToken?: string;
     uploaded?: boolean;
     error?: string;
   }>({});
+  const [historyCount, setHistoryCount] = useState(0);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
+  const [paymentReference, setPaymentReference] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState("Ready");
+
+  useEffect(() => {
+    if (!authToken) {
+      return;
+    }
+
+    void syncChallengeState(authToken);
+  }, [authToken]);
+
+  useEffect(() => {
+    if (!paymentReference || !authToken) {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      void pollPaymentStatus(paymentReference);
+    }, 3000);
+
+    void pollPaymentStatus(paymentReference);
+
+    return () => clearInterval(timer);
+  }, [paymentReference, authToken]);
+
+  async function syncChallengeState(token: string) {
+    const [active, history] = await Promise.all([
+      getActiveChallenges(token),
+      getChallengeHistory(token),
+    ]);
+
+    const current = active.challenges[0] ?? null;
+    setActiveChallenge(current);
+    setHistoryCount(history.challenges.length);
+
+    if (!current) {
+      setHomeState("no-active");
+      return;
+    }
+
+    if (current.status === "pending_payment") {
+      setHomeState("pending-payment");
+      setPaymentReference(current.referencePubkey);
+      return;
+    }
+
+    if (current.status === "active") {
+      setHomeState("active-countdown");
+      return;
+    }
+
+    if (current.status === "completed") {
+      setHomeState("completed");
+      return;
+    }
+
+    if (current.status === "rewarded") {
+      setHomeState("rewarded");
+      return;
+    }
+
+    if (current.status === "failed") {
+      setHomeState("missed");
+    }
+  }
+
+  async function handleConnectWallet() {
+    try {
+      setIsAuthenticating(true);
+      setStatusMessage("Requesting wallet nonce");
+      const nextWalletAddress = "DemoWallet111111111111111111111111111111111";
+      const timezoneToUse = Localization.getCalendars()[0]?.timeZone ?? timezone;
+      const nonceResponse = await requestNonce(nextWalletAddress);
+      const signature = `signed:${nonceResponse.nonce}`;
+      const verified = await verifyWallet({
+        walletAddress: nextWalletAddress,
+        signature,
+        timezone: timezoneToUse,
+      });
+
+      await updateTimezone({
+        authToken: verified.token,
+        timezone: timezoneToUse,
+      });
+
+      connectWallet({
+        walletAddress: verified.walletAddress,
+        authToken: verified.token,
+        timezone: timezoneToUse,
+      });
+      setStatusMessage("Wallet connected through MVP auth flow");
+      await syncChallengeState(verified.token);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "CONNECT_WALLET_FAILED";
+      setStatusMessage(message);
+      Alert.alert("Wallet connection failed", message);
+    } finally {
+      setIsAuthenticating(false);
+    }
+  }
+
+  async function handleJoinChallenge() {
+    if (!authToken) {
+      Alert.alert("Connect wallet first", "A JWT is needed before creating a challenge.");
+      return;
+    }
+
+    try {
+      setIsJoining(true);
+      setStatusMessage("Initiating challenge and generating Solana Pay reference");
+      const initiated = await initiateChallenge({
+        authToken,
+        timezone,
+      });
+
+      setPaymentReference(initiated.reference);
+      setActiveChallenge({
+        id: initiated.challengeId,
+        walletAddress: walletAddress ?? "",
+        status: "pending_payment",
+        timezone,
+        referencePubkey: initiated.reference,
+      });
+      setHomeState("pending-payment");
+      setStatusMessage(`Challenge created. Waiting on reference ${initiated.reference.slice(0, 8)}...`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "INITIATE_CHALLENGE_FAILED";
+      setStatusMessage(message);
+      Alert.alert("Could not create challenge", message);
+    } finally {
+      setIsJoining(false);
+    }
+  }
+
+  async function pollPaymentStatus(reference: string) {
+    try {
+      const firstCheck = await getPaymentStatus(reference, false);
+      if (firstCheck.status === "active" && authToken) {
+        setPaymentReference(null);
+        setStatusMessage("Payment confirmed");
+        await syncChallengeState(authToken);
+        return;
+      }
+
+      const activated = await getPaymentStatus(reference, true);
+      if (activated.status === "active" && authToken) {
+        setPaymentReference(null);
+        setStatusMessage("MVP payment auto-confirmed");
+        await syncChallengeState(authToken);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "PAYMENT_STATUS_FAILED";
+      setStatusMessage(message);
+    }
+  }
 
   async function handleEnableNotifications() {
     try {
       const registration = await registerForPushNotificationsAsync();
       let uploaded = false;
 
-      if (authToken && authToken !== "replace-with-wallet-jwt") {
+      if (authToken) {
         await uploadFcmToken({
           authToken,
           fcmToken: registration.devicePushToken,
@@ -209,7 +376,10 @@ export default function App() {
             </Text>
             <Text style={styles.meta}>Timezone: {timezone}</Text>
             <Text style={styles.meta}>
-              Auth: {authToken ? "JWT placeholder ready" : "No JWT yet"}
+              Auth: {authToken ? "JWT ready" : "No JWT yet"}
+            </Text>
+            <Text style={styles.meta}>
+              Active challenge: {activeChallenge ? activeChallenge.status : "none"}
             </Text>
           </View>
 
@@ -233,23 +403,29 @@ export default function App() {
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Primary flows included</Text>
-            <Text style={styles.listItem}>Onboarding and wallet connect placeholder</Text>
-            <Text style={styles.listItem}>Join challenge and pending-payment state</Text>
-            <Text style={styles.listItem}>Active check-in states and reward-ready states</Text>
-            <Text style={styles.listItem}>Profile and reward history ready for API wiring</Text>
+            <Text style={styles.cardTitle}>Live MVP flow</Text>
+            <Text style={styles.listItem}>Nonce and JWT auth request wired to Firebase Functions</Text>
+            <Text style={styles.listItem}>Challenge initiate request and payment polling wired</Text>
+            <Text style={styles.listItem}>MVP auto-activation keeps Solana UI unblocked for now</Text>
+            <Text style={styles.listItem}>Challenge history count: {historyCount}</Text>
+            <Text style={styles.meta}>Status: {statusMessage}</Text>
           </View>
         </View>
 
         <View style={styles.actions}>
-          <TouchableOpacity style={styles.primaryButton} onPress={connectWallet}>
-            <Text style={styles.primaryButtonText}>Connect Wallet</Text>
+          <TouchableOpacity style={styles.primaryButton} onPress={handleConnectWallet}>
+            <Text style={styles.primaryButtonText}>
+              {isAuthenticating ? "Connecting..." : "Connect Wallet"}
+            </Text>
+          </TouchableOpacity>
+          {isAuthenticating ? <ActivityIndicator color="#132a13" /> : null}
+          <TouchableOpacity style={styles.primaryButton} onPress={handleJoinChallenge}>
+            <Text style={styles.primaryButtonText}>
+              {isJoining ? "Creating Challenge..." : "Join Challenge"}
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.secondaryButton} onPress={handleEnableNotifications}>
             <Text style={styles.secondaryButtonText}>Enable Notifications</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryButton} onPress={cycleState}>
-            <Text style={styles.secondaryButtonText}>Preview Next State</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
