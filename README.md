@@ -22,6 +22,17 @@ The following pieces are intentionally left as integration points:
 - real wallet signature verification
 - FCM push delivery
 
+## Backend notes
+
+The API now includes:
+
+- in-memory repository abstraction in [packages/api/src/repositories.ts](/Volumes/virus%20base/myprojects/earlybirds/packages/api/src/repositories.ts)
+- SQL schema draft in [packages/api/src/db/schema.sql](/Volumes/virus%20base/myprojects/earlybirds/packages/api/src/db/schema.sql)
+- reward candidate query sketches in [packages/api/src/db/queries.sql](/Volumes/virus%20base/myprojects/earlybirds/packages/api/src/db/queries.sql)
+- cron job definitions in [packages/api/src/cron.ts](/Volumes/virus%20base/myprojects/earlybirds/packages/api/src/cron.ts)
+
+This keeps the current app runnable while making the migration to PostgreSQL straightforward.
+
 ## Quick start
 
 ```bash
@@ -44,4 +55,3 @@ cp packages/api/.env.example packages/api/.env
 2. Wire `auth/verify` to actual wallet signature validation.
 3. Replace mock payment confirmation with Helius or QuickNode RPC verification.
 4. Add Expo wallet adapter, Solana Pay, and push notification integrations.
-

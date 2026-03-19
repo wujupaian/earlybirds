@@ -15,24 +15,23 @@ import {
 import { randomUUID } from "node:crypto";
 import { store } from "./store.js";
 import { config } from "./config.js";
+import { repository } from "./repositories.js";
 
 export function upsertUser(walletAddress: string, timezone: string): User {
-  const existing = store.users.get(walletAddress);
+  const existing = repository.getUser(walletAddress);
   const user: User = {
     walletAddress,
     timezone,
     fcmToken: existing?.fcmToken,
     createdAt: existing?.createdAt ?? new Date().toISOString(),
   };
-  store.users.set(walletAddress, user);
-  return user;
+  return repository.saveUser(user);
 }
 
 export function setUserFcmToken(walletAddress: string, fcmToken: string): User {
-  const existing = store.users.get(walletAddress) ?? upsertUser(walletAddress, "Asia/Manila");
+  const existing = repository.getUser(walletAddress) ?? upsertUser(walletAddress, "Asia/Manila");
   const next = { ...existing, fcmToken };
-  store.users.set(walletAddress, next);
-  return next;
+  return repository.saveUser(next);
 }
 
 export function createChallenge(walletAddress: string, timezone: string): Challenge {
@@ -46,8 +45,7 @@ export function createChallenge(walletAddress: string, timezone: string): Challe
     referencePubkey: randomUUID(),
     createdAt: new Date().toISOString(),
   };
-  store.challenges.set(id, challenge);
-  return challenge;
+  return repository.saveChallenge(challenge);
 }
 
 export function activateChallenge(challengeId: string, depositTxSig: string): Challenge {
@@ -61,13 +59,13 @@ export function activateChallenge(challengeId: string, depositTxSig: string): Ch
     startTime: startTime.toISOString(),
     endTime: endTime.toISOString(),
   };
-  store.challenges.set(challengeId, active);
-  store.checkins.set(challengeId, buildCheckins(challengeId, startTime, challenge.timezone));
+  repository.saveChallenge(active);
+  repository.saveCheckins(challengeId, buildCheckins(challengeId, startTime, challenge.timezone));
   return active;
 }
 
 export function getChallenge(challengeId: string): Challenge {
-  const challenge = store.challenges.get(challengeId);
+  const challenge = repository.getChallenge(challengeId);
   if (!challenge) {
     throw new Error("CHALLENGE_NOT_FOUND");
   }
@@ -75,17 +73,17 @@ export function getChallenge(challengeId: string): Challenge {
 }
 
 export function getChallengeCheckins(challengeId: string): Checkin[] {
-  return store.checkins.get(challengeId) ?? [];
+  return repository.listCheckins(challengeId);
 }
 
 export function getActiveChallenges(walletAddress: string): Challenge[] {
-  return Array.from(store.challenges.values()).filter(
+  return repository.listChallenges().filter(
     (item) => item.walletAddress === walletAddress && ["pending_payment", "active"].includes(item.status),
   );
 }
 
 export function getHistory(walletAddress: string): Challenge[] {
-  return Array.from(store.challenges.values()).filter((item) => item.walletAddress === walletAddress);
+  return repository.listChallenges().filter((item) => item.walletAddress === walletAddress);
 }
 
 export function submitCheckin(walletAddress: string, challengeId: string) {
@@ -121,7 +119,7 @@ export function submitCheckin(walletAddress: string, challengeId: string) {
   const completedCount = checkins.filter((item) => item.checkedIn).length;
   if (completedCount === 7) {
     const completed: Challenge = { ...challenge, status: "completed" };
-    store.challenges.set(challengeId, completed);
+    repository.saveChallenge(completed);
   }
 
   return {
@@ -147,7 +145,7 @@ export function markMissedChallenges(now = new Date()): Challenge[] {
         ...challenge,
         status: allDone ? "completed" : "failed",
       };
-      store.challenges.set(challenge.id, nextStatus);
+      repository.saveChallenge(nextStatus);
       updated.push(nextStatus);
     }
   }
@@ -156,7 +154,7 @@ export function markMissedChallenges(now = new Date()): Challenge[] {
 }
 
 export function distributeRewards(now = new Date()): RewardBatch {
-  const eligible = Array.from(store.challenges.values()).filter((item) => {
+  const eligible = repository.listChallenges().filter((item) => {
     if (!item.endTime) {
       return false;
     }
@@ -173,12 +171,12 @@ export function distributeRewards(now = new Date()): RewardBatch {
     distributed: true,
   });
 
-  store.rewardBatches.set(batch.id, batch);
+  repository.saveRewardBatch(batch);
   store.rolloverSol = batch.rolloverSol;
 
   for (const challenge of eligible) {
     if (challenge.status === "completed") {
-      store.challenges.set(challenge.id, {
+      repository.saveChallenge({
         ...challenge,
         status: "rewarded",
         rewardBatchId: batch.id,
@@ -202,7 +200,7 @@ export function buildPaymentInitResponse(walletAddress: string, timezone: string
 }
 
 export function simulatePaymentConfirmation(reference: string) {
-  const challenge = Array.from(store.challenges.values()).find((item) => item.referencePubkey === reference);
+  const challenge = repository.listChallenges().find((item) => item.referencePubkey === reference);
   if (!challenge) {
     throw new Error("REFERENCE_NOT_FOUND");
   }
@@ -214,3 +212,22 @@ export function simulatePaymentConfirmation(reference: string) {
   return activateChallenge(challenge.id, `simulated-${Date.now()}`);
 }
 
+export function sweepPendingPayments(now = new Date()) {
+  const staleChallenges: Challenge[] = [];
+
+  for (const challenge of repository.listChallenges()) {
+    if (challenge.status !== "pending_payment") {
+      continue;
+    }
+
+    const ageMs = now.getTime() - new Date(challenge.createdAt).getTime();
+    const maxAgeMs = store.paymentExpiryMinutes * 60_000;
+    if (ageMs > maxAgeMs) {
+      const expired: Challenge = { ...challenge, status: "expired" };
+      repository.saveChallenge(expired);
+      staleChallenges.push(expired);
+    }
+  }
+
+  return staleChallenges;
+}

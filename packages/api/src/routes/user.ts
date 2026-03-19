@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { setUserFcmToken, upsertUser } from "../domain.js";
-import { store } from "../store.js";
+import { repository } from "../repositories.js";
 
 export async function registerUserRoutes(app: FastifyInstance) {
   app.put(
@@ -29,8 +29,7 @@ export async function registerUserRoutes(app: FastifyInstance) {
     "/me",
     { preHandler: [(app as any).authenticate] },
     async (request) => ({
-      user: store.users.get(request.walletAddress!) ?? null,
+      user: repository.getUser(request.walletAddress!) ?? null,
     }),
   );
 }
-

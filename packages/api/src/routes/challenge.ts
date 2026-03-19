@@ -9,7 +9,7 @@ import {
   simulatePaymentConfirmation,
   submitCheckin,
 } from "../domain.js";
-import { store } from "../store.js";
+import { repository } from "../repositories.js";
 
 export async function registerChallengeRoutes(app: FastifyInstance) {
   app.post(
@@ -18,7 +18,7 @@ export async function registerChallengeRoutes(app: FastifyInstance) {
     async (request) => {
       const body = request.body as { timezone?: string };
       const walletAddress = request.walletAddress!;
-      const userTimezone = body.timezone ?? store.users.get(walletAddress)?.timezone ?? "Asia/Manila";
+      const userTimezone = body.timezone ?? repository.getUser(walletAddress)?.timezone ?? "Asia/Manila";
       return buildPaymentInitResponse(walletAddress, userTimezone);
     },
   );
@@ -30,7 +30,7 @@ export async function registerChallengeRoutes(app: FastifyInstance) {
       return { success: true, status: challenge.status, challenge };
     }
 
-    const challenge = Array.from(store.challenges.values()).find(
+    const challenge = repository.listChallenges().find(
       (item) => item.referencePubkey === query.reference,
     );
 
@@ -89,4 +89,3 @@ export async function registerChallengeRoutes(app: FastifyInstance) {
     return { updated: markMissedChallenges() };
   });
 }
-

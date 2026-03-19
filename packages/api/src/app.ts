@@ -7,6 +7,7 @@ import { registerChallengeRoutes } from "./routes/challenge.js";
 import { registerRewardRoutes } from "./routes/reward.js";
 import { registerUserRoutes } from "./routes/user.js";
 import { registerAdminRoutes } from "./routes/admin.js";
+import { describeCronJobs } from "./cron.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -30,6 +31,7 @@ export function buildApp() {
   });
 
   app.get("/health", async () => ({ ok: true }));
+  app.get("/meta/cron", async () => ({ jobs: describeCronJobs() }));
   app.register(registerAuthRoutes, { prefix: "/auth" });
   app.register(registerChallengeRoutes, { prefix: "/challenge" });
   app.register(registerRewardRoutes, { prefix: "/reward" });
@@ -38,4 +40,3 @@ export function buildApp() {
 
   return app;
 }
-

@@ -7,5 +7,5 @@ export const store = {
   rewardBatches: new Map<string, RewardBatch>(),
   nonces: new Map<string, string>(),
   rolloverSol: 0,
+  paymentExpiryMinutes: 5,
 };
-
