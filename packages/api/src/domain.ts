@@ -13,6 +13,7 @@ import {
 } from "@earlybirds/shared";
 import { randomUUID } from "node:crypto";
 import { firestoreRepository } from "./repositories.js";
+import { sendNotificationToWallet } from "./firebase/messaging.js";
 
 const platformWallet = process.env.PLATFORM_WALLET ?? "EARLYBIRDS_PLATFORM_WALLET";
 const paymentExpiryMinutes = 5;
@@ -85,6 +86,7 @@ export async function activateChallenge(challengeId: string, depositTxSig: strin
     challengeId,
     buildCheckins(challengeId, startTime, challenge.timezone),
   );
+  await notifyChallengeActivated(next);
   return next;
 }
 
@@ -195,6 +197,11 @@ export async function markMissedChallenges(now = new Date()) {
       status: allDone ? "completed" : "failed",
     };
     await firestoreRepository.saveChallenge(next);
+    if (next.status === "completed") {
+      await notifyChallengeCompleted(next);
+    } else {
+      await notifyChallengeFailed(next);
+    }
     updated.push(next);
   }
 
@@ -247,6 +254,11 @@ export async function distributeRewards(now = new Date()) {
       rewardBatchId: batch.id,
       rewardAmount: Math.round(batch.rewardPerUserSol * 1_000_000_000),
     });
+    await notifyRewardDistributed({
+      walletAddress: challenge.walletAddress,
+      rewardAmountSol: batch.rewardPerUserSol.toFixed(2),
+      batchId: batch.id,
+    });
   }
 
   return batch;
@@ -264,3 +276,70 @@ export function getNextDistribution() {
   return getNextDistributionTime(new Date()).toISOString();
 }
 
+async function notifyChallengeActivated(challenge: Challenge) {
+  try {
+    await sendNotificationToWallet({
+      walletAddress: challenge.walletAddress,
+      title: "Challenge started",
+      body: "Your first early-bird check-in window opens tomorrow at 04:59.",
+      data: {
+        type: "challenge_activated",
+        challengeId: challenge.id,
+      },
+    });
+  } catch {
+    return;
+  }
+}
+
+async function notifyChallengeCompleted(challenge: Challenge) {
+  try {
+    await sendNotificationToWallet({
+      walletAddress: challenge.walletAddress,
+      title: "Challenge complete",
+      body: "You completed all 7 days. Reward distribution is scheduled for next Monday at 9:00 AM PHT.",
+      data: {
+        type: "challenge_completed",
+        challengeId: challenge.id,
+      },
+    });
+  } catch {
+    return;
+  }
+}
+
+async function notifyChallengeFailed(challenge: Challenge) {
+  try {
+    await sendNotificationToWallet({
+      walletAddress: challenge.walletAddress,
+      title: "Challenge failed",
+      body: "A daily check-in window was missed. You can start a new challenge anytime.",
+      data: {
+        type: "challenge_failed",
+        challengeId: challenge.id,
+      },
+    });
+  } catch {
+    return;
+  }
+}
+
+async function notifyRewardDistributed(params: {
+  walletAddress: string;
+  rewardAmountSol: string;
+  batchId: string;
+}) {
+  try {
+    await sendNotificationToWallet({
+      walletAddress: params.walletAddress,
+      title: "Reward sent",
+      body: `${params.rewardAmountSol} SOL has been sent to your wallet.`,
+      data: {
+        type: "reward_distributed",
+        batchId: params.batchId,
+      },
+    });
+  } catch {
+    return;
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "242105414312",
+    "project_id": "earlybirds-1fa01",
+    "storage_bucket": "earlybirds-1fa01.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:242105414312:android:448c283c29773e84b4089d",
+        "android_client_info": {
+          "package_name": "com.early.birds"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBC0qlQJvmlsXY7zWnuiLrTMiNH-xxQ2NI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -6,9 +6,15 @@
     "version": "0.1.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "plugins": [
+      "expo-notifications"
+    ],
+    "android": {
+      "package": "com.early.birds",
+      "googleServicesFile": "../../google-services.json"
+    },
     "assetBundlePatterns": [
       "**/*"
     ]
   }
 }
-

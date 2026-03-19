@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import { StatusBar } from "expo-status-bar";
 import {
+  Alert,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -9,6 +10,11 @@ import {
   View,
 } from "react-native";
 import { create } from "zustand";
+import { uploadFcmToken } from "./src/api";
+import {
+  registerForPushNotificationsAsync,
+  scheduleLocalCheckinReminder,
+} from "./src/notifications";
 
 type HomeState =
   | "no-active"
@@ -21,12 +27,14 @@ type HomeState =
   | "rewarded";
 
 type AppState = {
+  authToken: string | null;
   walletAddress: string | null;
   timezone: string;
   homeState: HomeState;
   dayNumber: number;
   rewardAmount: string;
   connectWallet: () => void;
+  setAuthToken: (authToken: string | null) => void;
   cycleState: () => void;
 };
 
@@ -42,13 +50,19 @@ const orderedStates: HomeState[] = [
 ];
 
 const useAppStore = create<AppState>((set, get) => ({
+  authToken: null,
   walletAddress: null,
   timezone: "Asia/Manila",
   homeState: "no-active",
   dayNumber: 3,
   rewardAmount: "0.22",
   connectWallet: () =>
-    set({ walletAddress: "8jYt...k2Lm", homeState: "no-active" }),
+    set({
+      walletAddress: "8jYt...k2Lm",
+      authToken: "replace-with-wallet-jwt",
+      homeState: "no-active",
+    }),
+  setAuthToken: (authToken) => set({ authToken }),
   cycleState: () => {
     const current = get().homeState;
     const currentIndex = orderedStates.indexOf(current);
@@ -138,7 +152,40 @@ function StateCard(props: { title: string; body: string; accent: string }) {
 }
 
 export default function App() {
-  const { walletAddress, timezone, connectWallet, cycleState } = useAppStore();
+  const { authToken, walletAddress, timezone, connectWallet, cycleState } = useAppStore();
+  const [notificationState, setNotificationState] = useState<{
+    permissionStatus?: string;
+    devicePushToken?: string;
+    uploaded?: boolean;
+    error?: string;
+  }>({});
+
+  async function handleEnableNotifications() {
+    try {
+      const registration = await registerForPushNotificationsAsync();
+      let uploaded = false;
+
+      if (authToken && authToken !== "replace-with-wallet-jwt") {
+        await uploadFcmToken({
+          authToken,
+          fcmToken: registration.devicePushToken,
+        });
+        uploaded = true;
+      }
+
+      await scheduleLocalCheckinReminder();
+
+      setNotificationState({
+        permissionStatus: registration.permissionStatus,
+        devicePushToken: registration.devicePushToken,
+        uploaded,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "UNKNOWN_NOTIFICATION_ERROR";
+      setNotificationState({ error: message });
+      Alert.alert("Notification setup failed", message);
+    }
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -161,6 +208,28 @@ export default function App() {
               {walletAddress ?? "No wallet connected yet"}
             </Text>
             <Text style={styles.meta}>Timezone: {timezone}</Text>
+            <Text style={styles.meta}>
+              Auth: {authToken ? "JWT placeholder ready" : "No JWT yet"}
+            </Text>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Notifications</Text>
+            <Text style={styles.cardBody}>
+              Android Firebase config is wired. This flow requests permission, reads a device push token, and can upload it once real wallet JWT auth is connected.
+            </Text>
+            <Text style={styles.meta}>
+              Permission: {notificationState.permissionStatus ?? "not requested"}
+            </Text>
+            <Text style={styles.meta}>
+              Device token: {notificationState.devicePushToken ? "captured" : "not captured"}
+            </Text>
+            <Text style={styles.meta}>
+              Backend upload: {notificationState.uploaded ? "done" : "waiting for real JWT"}
+            </Text>
+            {notificationState.error ? (
+              <Text style={styles.errorText}>Last error: {notificationState.error}</Text>
+            ) : null}
           </View>
 
           <View style={styles.card}>
@@ -175,6 +244,9 @@ export default function App() {
         <View style={styles.actions}>
           <TouchableOpacity style={styles.primaryButton} onPress={connectWallet}>
             <Text style={styles.primaryButtonText}>Connect Wallet</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.secondaryButton} onPress={handleEnableNotifications}>
+            <Text style={styles.secondaryButtonText}>Enable Notifications</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.secondaryButton} onPress={cycleState}>
             <Text style={styles.secondaryButtonText}>Preview Next State</Text>
@@ -255,6 +327,11 @@ const styles = StyleSheet.create({
     color: "#6b7280",
     fontSize: 13,
   },
+  errorText: {
+    marginTop: 10,
+    color: "#b91c1c",
+    fontSize: 13,
+  },
   actions: {
     gap: 12,
   },
@@ -283,4 +360,3 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
-

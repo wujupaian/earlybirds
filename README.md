@@ -41,6 +41,10 @@ cp packages/api/.env.example packages/api/.env
 
 The Firebase entry point is [index.ts](/Volumes/virus%20base/myprojects/earlybirds/packages/api/src/index.ts), HTTP routing lives in [http.ts](/Volumes/virus%20base/myprojects/earlybirds/packages/api/src/firebase/http.ts), and Firestore access lives in [repositories.ts](/Volumes/virus%20base/myprojects/earlybirds/packages/api/src/repositories.ts).
 
+For Android Firebase app wiring, Expo reads [app.json](/Volumes/virus%20base/myprojects/earlybirds/apps/mobile/app.json) and uses the root-level [google-services.json](/Volumes/virus%20base/myprojects/earlybirds/google-services.json) for package `com.early.birds`.
+
+The mobile app now includes push registration helpers in [notifications.ts](/Volumes/virus%20base/myprojects/earlybirds/apps/mobile/src/notifications.ts), and the backend can send FCM messages by wallet address through [messaging.ts](/Volumes/virus%20base/myprojects/earlybirds/packages/api/src/firebase/messaging.ts).
+
 ## Suggested next steps
 
 1. Wire `auth/verify` to actual wallet signature validation.

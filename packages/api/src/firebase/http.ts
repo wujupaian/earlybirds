@@ -17,6 +17,7 @@ import {
 } from "../domain.js";
 import { firestoreRepository } from "../repositories.js";
 import { signWalletToken, verifyWalletToken } from "./auth.js";
+import { sendNotificationToWallet } from "./messaging.js";
 
 function sendJson(res: any, status: number, body: unknown) {
   res.status(status).json(body);
@@ -125,9 +126,26 @@ export async function handleApiRequest(req: any, res: any) {
       return sendJson(res, 200, { batch: await distributeRewards() });
     }
 
+    if (method === "POST" && path === "/admin/notify-test") {
+      if (req.headers["x-admin-key"] !== (process.env.ADMIN_API_KEY ?? "replace-admin-key")) {
+        return sendJson(res, 401, { error: "UNAUTHORIZED" });
+      }
+      return sendJson(
+        res,
+        200,
+        await sendNotificationToWallet({
+          walletAddress: body.walletAddress,
+          title: body.title ?? "Earlybirds test notification",
+          body: body.message ?? "Firebase Cloud Messaging is connected.",
+          data: {
+            type: "test",
+          },
+        }),
+      );
+    }
+
     return sendJson(res, 404, { error: "NOT_FOUND" });
   } catch (error) {
     return sendJson(res, 400, { error: (error as Error).message });
   }
 }
-
