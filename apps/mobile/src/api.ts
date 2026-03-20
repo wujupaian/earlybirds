@@ -1,6 +1,7 @@
 import axios from "axios";
 
-export const API_BASE_URL = "http://127.0.0.1:5001/earlybirds-1fa01/asia-southeast1/api";
+export const API_BASE_URL = "http://127.0.0.1:5001/earlybirds-59ef4/asia-southeast1/api";
+
 
 const client = axios.create({
   baseURL: API_BASE_URL,
