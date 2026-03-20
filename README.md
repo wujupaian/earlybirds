@@ -53,6 +53,8 @@ The Home screen can now build a real Solana Pay URL from backend challenge-initi
 
 Rewards are now modeled for manual distribution: the backend computes winners and payout amounts, then an admin can inspect the payout list and mark the batch as distributed after sending funds manually.
 
+Deposit confirmation is now wired for real Solana mainnet-style verification: challenges generate a true reference public key, and the backend validates finalized transfers against recipient, amount, reference, and memo via Solana RPC.
+
 ## Suggested next steps
 
 1. Wire `auth/verify` to actual wallet signature validation.

@@ -17,6 +17,11 @@ import { randomUUID } from "node:crypto";
 import { firestoreRepository } from "./repositories.js";
 import { sendNotificationToWallet } from "./firebase/messaging.js";
 import { getPlatformWalletAddress } from "./firebase/secrets.js";
+import {
+  findValidDepositSignature,
+  generateReferencePubkey,
+  getSolanaRpcStatus,
+} from "./solana.js";
 
 const paymentExpiryMinutes = 5;
 
@@ -65,7 +70,7 @@ export async function createChallenge(walletAddress: string, timezone: string) {
     depositAmount: DEPOSIT_LAMPORTS,
     status: "pending_payment",
     timezone,
-    referencePubkey: randomUUID(),
+    referencePubkey: generateReferencePubkey(),
     createdAt: new Date().toISOString(),
   };
   await firestoreRepository.saveChallenge(challenge);
@@ -132,6 +137,19 @@ export async function getPaymentStatus(reference: string) {
   if (!challenge) {
     throw new Error("REFERENCE_NOT_FOUND");
   }
+
+  if (challenge.status === "pending_payment") {
+    const signature = await findValidDepositSignature({
+      recipient: getPlatformWalletAddress(),
+      reference: challenge.referencePubkey,
+      memo: `challenge:${challenge.id}`,
+    });
+
+    if (signature) {
+      return activateChallenge(challenge.id, signature);
+    }
+  }
+
   return challenge;
 }
 
@@ -223,6 +241,17 @@ export async function sweepPendingPayments(now = new Date()) {
   const expired: Challenge[] = [];
 
   for (const challenge of pendingChallenges) {
+    const signature = await findValidDepositSignature({
+      recipient: getPlatformWalletAddress(),
+      reference: challenge.referencePubkey,
+      memo: `challenge:${challenge.id}`,
+    });
+
+    if (signature) {
+      await activateChallenge(challenge.id, signature);
+      continue;
+    }
+
     const ageMs = now.getTime() - new Date(challenge.createdAt).getTime();
     if (ageMs <= paymentExpiryMinutes * 60_000) {
       continue;
@@ -287,6 +316,7 @@ export function getNextDistribution() {
 
 export function getPlatformWalletStatus() {
   const address = getPlatformWalletAddress();
+  const rpc = getSolanaRpcStatus();
 
   return {
     addressConfigured:
@@ -295,6 +325,8 @@ export function getPlatformWalletStatus() {
       address && address !== "EARLYBIRDS_PLATFORM_WALLET"
         ? `${address.slice(0, 4)}...${address.slice(-4)}`
         : null,
+    solanaRpcUrl: rpc.rpcUrl,
+    solanaCluster: rpc.cluster,
   };
 }
 
