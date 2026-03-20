@@ -7,6 +7,7 @@ import {
   getHistory,
   getNextDistribution,
   getPaymentStatus,
+  getPlatformWalletStatus,
   getRewardBatch,
   getRewardHistory,
   setUserFcmToken,
@@ -130,6 +131,13 @@ export async function handleApiRequest(req: any, res: any) {
         return sendJson(res, 401, { error: "UNAUTHORIZED" });
       }
       return sendJson(res, 200, { batch: await distributeRewards() });
+    }
+
+    if (method === "GET" && path === "/admin/platform-wallet-status") {
+      if (req.headers["x-admin-key"] !== (process.env.ADMIN_API_KEY ?? "replace-admin-key")) {
+        return sendJson(res, 401, { error: "UNAUTHORIZED" });
+      }
+      return sendJson(res, 200, getPlatformWalletStatus());
     }
 
     if (method === "POST" && path === "/admin/notify-test") {

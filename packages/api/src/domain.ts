@@ -14,8 +14,8 @@ import {
 import { randomUUID } from "node:crypto";
 import { firestoreRepository } from "./repositories.js";
 import { sendNotificationToWallet } from "./firebase/messaging.js";
+import { getPlatformWalletAddress, getPlatformWalletPrivateKey } from "./firebase/secrets.js";
 
-const platformWallet = process.env.PLATFORM_WALLET ?? "EARLYBIRDS_PLATFORM_WALLET";
 const paymentExpiryMinutes = 5;
 
 export async function upsertUser(walletAddress: string, timezone: string): Promise<User> {
@@ -118,7 +118,7 @@ export async function buildPaymentInitResponse(walletAddress: string, timezone: 
   const challenge = await createChallenge(walletAddress, timezone);
   return {
     challengeId: challenge.id,
-    recipient: platformWallet,
+    recipient: getPlatformWalletAddress(),
     amount: 0.1,
     reference: challenge.referencePubkey,
     memo: `challenge:${challenge.id}`,
@@ -282,6 +282,21 @@ export async function getRewardBatch(batchId: string) {
 
 export function getNextDistribution() {
   return getNextDistributionTime(new Date()).toISOString();
+}
+
+export function getPlatformWalletStatus() {
+  const address = getPlatformWalletAddress();
+  const privateKey = getPlatformWalletPrivateKey();
+
+  return {
+    addressConfigured:
+      Boolean(address) && address !== "EARLYBIRDS_PLATFORM_WALLET",
+    privateKeyConfigured: Boolean(privateKey),
+    addressPreview:
+      address && address !== "EARLYBIRDS_PLATFORM_WALLET"
+        ? `${address.slice(0, 4)}...${address.slice(-4)}`
+        : null,
+  };
 }
 
 async function notifyChallengeActivated(challenge: Challenge) {

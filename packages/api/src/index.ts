@@ -7,6 +7,10 @@ import {
   runPendingPaymentSweep,
   runWeeklyRewardDistribution,
 } from "./firebase/schedules.js";
+import {
+  platformWalletAddressSecret,
+  platformWalletPrivateKeySecret,
+} from "./firebase/secrets.js";
 
 setGlobalOptions({
   region: "asia-southeast1",
@@ -17,6 +21,10 @@ export const api = onRequest(
   {
     cors: true,
     timeoutSeconds: 60,
+    secrets: [
+      platformWalletAddressSecret,
+      platformWalletPrivateKeySecret,
+    ],
   },
   handleApiRequest,
 );
@@ -25,6 +33,10 @@ export const dailyCheckinSweep = onSchedule(
   {
     schedule: "2 5 * * *",
     timeZone: "Asia/Manila",
+    secrets: [
+      platformWalletAddressSecret,
+      platformWalletPrivateKeySecret,
+    ],
   },
   async () => {
     await runDailyCheckinSweep();
@@ -35,6 +47,10 @@ export const weeklyRewardDistribution = onSchedule(
   {
     schedule: "0 9 * * 1",
     timeZone: "Asia/Manila",
+    secrets: [
+      platformWalletAddressSecret,
+      platformWalletPrivateKeySecret,
+    ],
   },
   async () => {
     await runWeeklyRewardDistribution();
@@ -45,9 +61,12 @@ export const pendingPaymentSweep = onSchedule(
   {
     schedule: "every 10 seconds",
     timeZone: "UTC",
+    secrets: [
+      platformWalletAddressSecret,
+      platformWalletPrivateKeySecret,
+    ],
   },
   async () => {
     await runPendingPaymentSweep();
   },
 );
-
