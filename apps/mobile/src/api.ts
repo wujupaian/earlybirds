@@ -29,6 +29,29 @@ export type CheckinRecord = {
   createdAt: string;
 };
 
+export type RewardBatchSummary = {
+  id: string;
+  periodStart: string;
+  periodEnd: string;
+  successCount: number;
+  failedCount: number;
+  totalDepositSol: number;
+  platformFeeSol: number;
+  rewardPoolSol: number;
+  rewardPerUserSol: number;
+  rolloverSol: number;
+  status: string;
+  distributedAt?: string;
+  createdAt: string;
+};
+
+export type ManualPayoutRecipient = {
+  challengeId: string;
+  walletAddress: string;
+  rewardAmountLamports: number;
+  rewardAmountSol: number;
+};
+
 export async function requestNonce(walletAddress: string) {
   const response = await client.post("/auth/nonce", { walletAddress });
   return response.data as { walletAddress: string; nonce: string };
@@ -176,5 +199,52 @@ export async function submitCheckin(params: {
     dayNumber: number;
     streak: number;
     remainingDays: number;
+  };
+}
+
+export async function getAdminRewardBatches(adminKey: string) {
+  const response = await client.get("/admin/reward/batches", {
+    headers: {
+      "x-admin-key": adminKey,
+    },
+  });
+
+  return response.data as {
+    batches: RewardBatchSummary[];
+  };
+}
+
+export async function getManualPayoutPreview(params: {
+  adminKey: string;
+  batchId: string;
+}) {
+  const response = await client.get(`/admin/reward/manual-preview/${params.batchId}`, {
+    headers: {
+      "x-admin-key": params.adminKey,
+    },
+  });
+
+  return response.data as {
+    batch: RewardBatchSummary;
+    recipients: ManualPayoutRecipient[];
+  };
+}
+
+export async function markBatchDistributed(params: {
+  adminKey: string;
+  batchId: string;
+}) {
+  const response = await client.post(
+    `/admin/reward/mark-distributed/${params.batchId}`,
+    {},
+    {
+      headers: {
+        "x-admin-key": params.adminKey,
+      },
+    },
+  );
+
+  return response.data as {
+    batch: RewardBatchSummary;
   };
 }

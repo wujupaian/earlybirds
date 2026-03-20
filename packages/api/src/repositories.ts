@@ -183,6 +183,11 @@ export const firestoreRepository = {
     return doc.exists ? deserializeRewardBatch(doc.data()) : undefined;
   },
 
+  async listRewardBatches() {
+    const snapshot = await rewardBatches.orderBy("createdAt", "desc").get();
+    return snapshot.docs.map((doc) => deserializeRewardBatch(doc.data()));
+  },
+
   async getRewardHistoryForWallet(walletAddress: string) {
     const snapshot = await challenges.where("walletAddress", "==", walletAddress).get();
     return snapshot.docs

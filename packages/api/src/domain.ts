@@ -277,6 +277,10 @@ export async function getRewardBatch(batchId: string) {
   return firestoreRepository.getRewardBatch(batchId);
 }
 
+export async function listRewardBatches() {
+  return firestoreRepository.listRewardBatches();
+}
+
 export function getNextDistribution() {
   return getNextDistributionTime(new Date()).toISOString();
 }

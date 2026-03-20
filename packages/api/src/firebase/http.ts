@@ -11,6 +11,7 @@ import {
   getPlatformWalletStatus,
   getRewardBatch,
   getRewardHistory,
+  listRewardBatches,
   markRewardBatchDistributed,
   setUserFcmToken,
   simulatePaymentConfirmation,
@@ -140,6 +141,15 @@ export async function handleApiRequest(req: any, res: any) {
         return sendJson(res, 401, { error: "UNAUTHORIZED" });
       }
       return sendJson(res, 200, getPlatformWalletStatus());
+    }
+
+    if (method === "GET" && path === "/admin/reward/batches") {
+      if (req.headers["x-admin-key"] !== (process.env.ADMIN_API_KEY ?? "replace-admin-key")) {
+        return sendJson(res, 401, { error: "UNAUTHORIZED" });
+      }
+      return sendJson(res, 200, {
+        batches: await listRewardBatches(),
+      });
     }
 
     if (method === "GET" && path.startsWith("/admin/reward/manual-preview/")) {

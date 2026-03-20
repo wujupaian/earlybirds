@@ -3,15 +3,20 @@ import * as Localization from "expo-localization";
 import { Linking } from "react-native";
 import {
   getActiveChallenges,
+  getAdminRewardBatches,
   getChallengeDetail,
   getChallengeHistory,
+  getManualPayoutPreview,
   getPaymentStatus,
   initiateChallenge,
+  markBatchDistributed,
   requestNonce,
   submitCheckin,
   updateTimezone,
   uploadFcmToken,
   verifyWallet,
+  type ManualPayoutRecipient,
+  type RewardBatchSummary,
   type ChallengeSummary,
   type CheckinRecord,
 } from "./api";
@@ -44,12 +49,17 @@ export function useChallengeController() {
   }>({});
   const [history, setHistory] = useState<ChallengeSummary[]>([]);
   const [checkins, setCheckins] = useState<CheckinRecord[]>([]);
+  const [rewardBatches, setRewardBatches] = useState<RewardBatchSummary[]>([]);
+  const [manualRecipients, setManualRecipients] = useState<ManualPayoutRecipient[]>([]);
+  const [selectedBatch, setSelectedBatch] = useState<RewardBatchSummary | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const [isCheckingIn, setIsCheckingIn] = useState(false);
+  const [isLoadingAdmin, setIsLoadingAdmin] = useState(false);
   const [paymentReference, setPaymentReference] = useState<string | null>(null);
   const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState("Ready");
+  const adminKey = "replace-admin-key";
 
   useEffect(() => {
     if (!authToken) {
@@ -309,6 +319,67 @@ export function useChallengeController() {
     }
   }
 
+  async function loadAdminRewardBatches() {
+    setIsLoadingAdmin(true);
+    try {
+      const response = await getAdminRewardBatches(adminKey);
+      setRewardBatches(response.batches);
+      setStatusMessage("Loaded reward batches");
+      return { ok: true as const };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "LOAD_REWARD_BATCHES_FAILED";
+      setStatusMessage(message);
+      return { ok: false as const, message };
+    } finally {
+      setIsLoadingAdmin(false);
+    }
+  }
+
+  async function loadManualPreview(batchId: string) {
+    setIsLoadingAdmin(true);
+    try {
+      const response = await getManualPayoutPreview({
+        adminKey,
+        batchId,
+      });
+      setSelectedBatch(response.batch);
+      setManualRecipients(response.recipients);
+      setStatusMessage(`Loaded manual payout preview for ${batchId.slice(0, 8)}`);
+      return { ok: true as const };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "LOAD_MANUAL_PREVIEW_FAILED";
+      setStatusMessage(message);
+      return { ok: false as const, message };
+    } finally {
+      setIsLoadingAdmin(false);
+    }
+  }
+
+  async function markSelectedBatchDistributed() {
+    if (!selectedBatch) {
+      return { ok: false as const, message: "No reward batch selected." };
+    }
+
+    setIsLoadingAdmin(true);
+    try {
+      const response = await markBatchDistributed({
+        adminKey,
+        batchId: selectedBatch.id,
+      });
+      setSelectedBatch(response.batch);
+      setStatusMessage(`Marked batch ${selectedBatch.id.slice(0, 8)} as distributed`);
+      await loadAdminRewardBatches();
+      await loadManualPreview(selectedBatch.id);
+      return { ok: true as const };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "MARK_BATCH_DISTRIBUTED_FAILED";
+      setStatusMessage(message);
+      return { ok: false as const, message };
+    } finally {
+      setIsLoadingAdmin(false);
+    }
+  }
+
   return {
     authToken,
     walletAddress,
@@ -319,10 +390,14 @@ export function useChallengeController() {
     rewardAmount,
     history,
     checkins,
+    rewardBatches,
+    manualRecipients,
+    selectedBatch,
     notificationState,
     isAuthenticating,
     isJoining,
     isCheckingIn,
+    isLoadingAdmin,
     paymentUrl,
     paymentReference,
     statusMessage,
@@ -332,6 +407,9 @@ export function useChallengeController() {
     handleCheckin,
     openPaymentUrl,
     handleDemoActivatePayment,
+    loadAdminRewardBatches,
+    loadManualPreview,
+    markSelectedBatchDistributed,
     syncChallengeState,
   };
 }
