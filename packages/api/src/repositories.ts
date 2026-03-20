@@ -149,6 +149,11 @@ export const firestoreRepository = {
     return snapshot.docs.map((doc) => deserializeChallenge(doc.data()));
   },
 
+  async listChallengesByRewardBatch(batchId: string) {
+    const snapshot = await challenges.where("rewardBatchId", "==", batchId).get();
+    return snapshot.docs.map((doc) => deserializeChallenge(doc.data()));
+  },
+
   async saveCheckins(challengeId: string, checkins: Checkin[]) {
     const batch = db.batch();
     for (const checkin of checkins) {
@@ -182,7 +187,12 @@ export const firestoreRepository = {
     const snapshot = await challenges.where("walletAddress", "==", walletAddress).get();
     return snapshot.docs
       .map((doc) => deserializeChallenge(doc.data()))
-      .filter((item) => typeof item.rewardAmount === "number");
+      .filter(
+        (item) =>
+          typeof item.rewardAmount === "number" ||
+          item.status === "awaiting_manual_payout" ||
+          item.status === "rewarded",
+      );
   },
 
   async getRolloverSol() {
@@ -194,4 +204,3 @@ export const firestoreRepository = {
     await appState.doc("rewards").set({ rolloverSol: value }, { merge: true });
   },
 };
-

@@ -51,6 +51,8 @@ The Expo client is now split into real screens using bottom-tab navigation: Home
 
 The Home screen can now build a real Solana Pay URL from backend challenge-initiation data and expose a wallet-open action, while still keeping a clearly labeled demo activation path for local verification.
 
+Rewards are now modeled for manual distribution: the backend computes winners and payout amounts, then an admin can inspect the payout list and mark the batch as distributed after sending funds manually.
+
 ## Suggested next steps
 
 1. Wire `auth/verify` to actual wallet signature validation.

@@ -1,6 +1,6 @@
 import { nextMonday, previousMonday } from "date-fns";
 import { fromZonedTime, formatInTimeZone } from "date-fns-tz";
-import type { Challenge, RewardBatch } from "./types";
+import type { Challenge, ManualPayoutRecipient, RewardBatch } from "./types";
 
 const PLATFORM_FEE_RATE = 0.1;
 const SOL_PER_CHALLENGE = 0.1;
@@ -33,6 +33,7 @@ export function buildRewardBatch(params: {
   eligibleChallenges: Challenge[];
   rolloverSol?: number;
   distributed?: boolean;
+  manualDistribution?: boolean;
 }): RewardBatch {
   const completed = params.eligibleChallenges.filter((item) => item.status === "completed");
   const failed = params.eligibleChallenges.filter((item) => item.status === "failed");
@@ -60,9 +61,26 @@ export function buildRewardBatch(params: {
     rewardPoolSol,
     rewardPerUserSol,
     rolloverSol,
-    status: params.distributed ? "distributed" : "pending",
+    status: params.distributed
+      ? "distributed"
+      : params.manualDistribution
+        ? "pending_manual_distribution"
+        : "pending",
     distributedAt: params.distributed ? new Date().toISOString() : undefined,
     createdAt: new Date().toISOString(),
   };
 }
 
+export function buildManualPayoutRecipients(params: {
+  batch: RewardBatch;
+  eligibleChallenges: Challenge[];
+}): ManualPayoutRecipient[] {
+  return params.eligibleChallenges
+    .filter((item) => item.status === "completed")
+    .map((item) => ({
+      challengeId: item.id,
+      walletAddress: item.walletAddress,
+      rewardAmountLamports: Math.round(params.batch.rewardPerUserSol * 1_000_000_000),
+      rewardAmountSol: params.batch.rewardPerUserSol,
+    }));
+}

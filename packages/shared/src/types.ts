@@ -3,11 +3,16 @@ export type ChallengeStatus =
   | "active"
   | "completed"
   | "failed"
+  | "awaiting_manual_payout"
   | "rewarded"
   | "expired"
   | "retry_pending";
 
-export type RewardBatchStatus = "pending" | "distributed" | "retry_pending";
+export type RewardBatchStatus =
+  | "pending"
+  | "pending_manual_distribution"
+  | "distributed"
+  | "retry_pending";
 
 export interface User {
   walletAddress: string;
@@ -57,3 +62,9 @@ export interface RewardBatch {
   createdAt: string;
 }
 
+export interface ManualPayoutRecipient {
+  challengeId: string;
+  walletAddress: string;
+  rewardAmountLamports: number;
+  rewardAmountSol: number;
+}

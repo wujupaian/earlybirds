@@ -5,11 +5,13 @@ import {
   getActiveChallenges,
   getChallengeDetail,
   getHistory,
+  getManualPayoutPreview,
   getNextDistribution,
   getPaymentStatus,
   getPlatformWalletStatus,
   getRewardBatch,
   getRewardHistory,
+  markRewardBatchDistributed,
   setUserFcmToken,
   simulatePaymentConfirmation,
   submitDemoCheckin,
@@ -138,6 +140,22 @@ export async function handleApiRequest(req: any, res: any) {
         return sendJson(res, 401, { error: "UNAUTHORIZED" });
       }
       return sendJson(res, 200, getPlatformWalletStatus());
+    }
+
+    if (method === "GET" && path.startsWith("/admin/reward/manual-preview/")) {
+      if (req.headers["x-admin-key"] !== (process.env.ADMIN_API_KEY ?? "replace-admin-key")) {
+        return sendJson(res, 401, { error: "UNAUTHORIZED" });
+      }
+      return sendJson(res, 200, await getManualPayoutPreview(path.split("/")[4]));
+    }
+
+    if (method === "POST" && path.startsWith("/admin/reward/mark-distributed/")) {
+      if (req.headers["x-admin-key"] !== (process.env.ADMIN_API_KEY ?? "replace-admin-key")) {
+        return sendJson(res, 401, { error: "UNAUTHORIZED" });
+      }
+      return sendJson(res, 200, {
+        batch: await markRewardBatchDistributed(path.split("/")[4]),
+      });
     }
 
     if (method === "POST" && path === "/admin/notify-test") {

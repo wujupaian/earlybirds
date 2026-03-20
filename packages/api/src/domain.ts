@@ -1,5 +1,6 @@
 import {
   buildCheckins,
+  buildManualPayoutRecipients,
   buildRewardBatch,
   DEPOSIT_LAMPORTS,
   getChallengeDayNumber,
@@ -9,12 +10,13 @@ import {
   getRewardPeriod,
   isValidCheckinTime,
   type Challenge,
+  type ManualPayoutRecipient,
   type User,
 } from "@earlybirds/shared";
 import { randomUUID } from "node:crypto";
 import { firestoreRepository } from "./repositories.js";
 import { sendNotificationToWallet } from "./firebase/messaging.js";
-import { getPlatformWalletAddress, getPlatformWalletPrivateKey } from "./firebase/secrets.js";
+import { getPlatformWalletAddress } from "./firebase/secrets.js";
 
 const paymentExpiryMinutes = 5;
 
@@ -245,7 +247,7 @@ export async function distributeRewards(now = new Date()) {
     batchId: randomUUID(),
     eligibleChallenges,
     rolloverSol,
-    distributed: true,
+    manualDistribution: true,
   });
 
   await firestoreRepository.saveRewardBatch(batch);
@@ -258,14 +260,9 @@ export async function distributeRewards(now = new Date()) {
 
     await firestoreRepository.saveChallenge({
       ...challenge,
-      status: "rewarded",
+      status: "awaiting_manual_payout",
       rewardBatchId: batch.id,
       rewardAmount: Math.round(batch.rewardPerUserSol * 1_000_000_000),
-    });
-    await notifyRewardDistributed({
-      walletAddress: challenge.walletAddress,
-      rewardAmountSol: batch.rewardPerUserSol.toFixed(2),
-      batchId: batch.id,
     });
   }
 
@@ -286,17 +283,67 @@ export function getNextDistribution() {
 
 export function getPlatformWalletStatus() {
   const address = getPlatformWalletAddress();
-  const privateKey = getPlatformWalletPrivateKey();
 
   return {
     addressConfigured:
       Boolean(address) && address !== "EARLYBIRDS_PLATFORM_WALLET",
-    privateKeyConfigured: Boolean(privateKey),
     addressPreview:
       address && address !== "EARLYBIRDS_PLATFORM_WALLET"
         ? `${address.slice(0, 4)}...${address.slice(-4)}`
         : null,
   };
+}
+
+export async function getManualPayoutPreview(batchId: string): Promise<{
+  batch: Awaited<ReturnType<typeof getRewardBatch>>;
+  recipients: ManualPayoutRecipient[];
+}> {
+  const batch = await firestoreRepository.getRewardBatch(batchId);
+  if (!batch) {
+    throw new Error("REWARD_BATCH_NOT_FOUND");
+  }
+
+  const eligibleChallenges = await firestoreRepository.listChallengesByRewardBatch(batchId);
+  return {
+    batch,
+    recipients: buildManualPayoutRecipients({
+      batch,
+      eligibleChallenges,
+    }),
+  };
+}
+
+export async function markRewardBatchDistributed(batchId: string) {
+  const batch = await firestoreRepository.getRewardBatch(batchId);
+  if (!batch) {
+    throw new Error("REWARD_BATCH_NOT_FOUND");
+  }
+
+  const distributedBatch = {
+    ...batch,
+    status: "distributed" as const,
+    distributedAt: new Date().toISOString(),
+  };
+  await firestoreRepository.saveRewardBatch(distributedBatch);
+
+  const challenges = await firestoreRepository.listChallengesByRewardBatch(batchId);
+  for (const challenge of challenges) {
+    if (challenge.status !== "awaiting_manual_payout") {
+      continue;
+    }
+
+    await firestoreRepository.saveChallenge({
+      ...challenge,
+      status: "rewarded",
+    });
+    await notifyRewardDistributed({
+      walletAddress: challenge.walletAddress,
+      rewardAmountSol: ((challenge.rewardAmount ?? 0) / 1_000_000_000).toFixed(2),
+      batchId,
+    });
+  }
+
+  return distributedBatch;
 }
 
 async function notifyChallengeActivated(challenge: Challenge) {
