@@ -11,6 +11,7 @@ import {
   getRewardHistory,
   setUserFcmToken,
   simulatePaymentConfirmation,
+  submitDemoCheckin,
   submitCheckin,
   upsertUser,
   verifyWalletNonce,
@@ -99,6 +100,11 @@ export async function handleApiRequest(req: any, res: any) {
     if (method === "POST" && path === "/challenge/checkin") {
       const walletAddress = verifyWalletToken(req.headers.authorization);
       return sendJson(res, 200, await submitCheckin(walletAddress, body.challengeId));
+    }
+
+    if (method === "POST" && path === "/challenge/checkin-demo") {
+      const walletAddress = verifyWalletToken(req.headers.authorization);
+      return sendJson(res, 200, await submitDemoCheckin(walletAddress, body.challengeId));
     }
 
     if (method === "GET" && path.startsWith("/challenge/")) {

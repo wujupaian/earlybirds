@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { StatusBar } from "expo-status-bar";
 import {
-  Alert,
   ActivityIndicator,
+  Alert,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -14,14 +14,17 @@ import { create } from "zustand";
 import * as Localization from "expo-localization";
 import {
   getActiveChallenges,
+  getChallengeDetail,
   getChallengeHistory,
   getPaymentStatus,
   initiateChallenge,
   requestNonce,
+  submitCheckin,
   updateTimezone,
   uploadFcmToken,
   verifyWallet,
   type ChallengeSummary,
+  type CheckinRecord,
 } from "./src/api";
 import {
   registerForPushNotificationsAsync,
@@ -48,17 +51,17 @@ type AppState = {
   rewardAmount: string;
   connectWallet: (payload: { walletAddress: string; authToken: string; timezone: string }) => void;
   setActiveChallenge: (challenge: ChallengeSummary | null) => void;
-  setAuthToken: (authToken: string | null) => void;
   setHomeState: (state: HomeState) => void;
+  setDayNumber: (dayNumber: number) => void;
 };
 
-const useAppStore = create<AppState>((set, get) => ({
+const useAppStore = create<AppState>((set) => ({
   authToken: null,
   walletAddress: null,
   timezone: Localization.getCalendars()[0]?.timeZone ?? "Asia/Manila",
   activeChallenge: null,
   homeState: "no-active",
-  dayNumber: 3,
+  dayNumber: 1,
   rewardAmount: "0.22",
   connectWallet: ({ walletAddress, authToken, timezone }) =>
     set({
@@ -68,8 +71,8 @@ const useAppStore = create<AppState>((set, get) => ({
       homeState: "no-active",
     }),
   setActiveChallenge: (activeChallenge) => set({ activeChallenge }),
-  setAuthToken: (authToken) => set({ authToken }),
   setHomeState: (homeState) => set({ homeState }),
+  setDayNumber: (dayNumber) => set({ dayNumber }),
 }));
 
 function HomeCard() {
@@ -77,69 +80,21 @@ function HomeCard() {
 
   switch (homeState) {
     case "no-active":
-      return (
-        <StateCard
-          title="Join a 7-day challenge"
-          body="Stake 0.1 SOL, wake up before 5 AM for 7 days, and earn from the weekly pool."
-          accent="#0b6e4f"
-        />
-      );
+      return <StateCard title="Join a 7-day challenge" body="Stake 0.1 SOL, wake up before 5 AM for 7 days, and earn from the weekly pool." accent="#0b6e4f" />;
     case "pending-payment":
-      return (
-        <StateCard
-          title="Waiting for payment confirmation"
-          body={`Challenge ${activeChallenge?.id.slice(0, 8) ?? ""} is waiting for Solana payment confirmation.`}
-          accent="#a16207"
-        />
-      );
+      return <StateCard title="Waiting for payment confirmation" body={`Challenge ${activeChallenge?.id.slice(0, 8) ?? ""} is waiting for Solana payment confirmation.`} accent="#a16207" />;
     case "active-countdown":
-      return (
-        <StateCard
-          title="Next check-in in 07:14:19"
-          body={`Challenge active. Your window opens at 04:59 and closes at 05:01 in ${activeChallenge?.timezone ?? "your timezone"}.`}
-          accent="#1d4ed8"
-        />
-      );
+      return <StateCard title="Challenge active" body={`Your window opens at 04:59 and closes at 05:01 in ${activeChallenge?.timezone ?? "your timezone"}.`} accent="#1d4ed8" />;
     case "active-window-open":
-      return (
-        <StateCard
-          title="CHECK IN NOW"
-          body="The 2-minute check-in window is open. Send the request before 05:01:00."
-          accent="#15803d"
-        />
-      );
+      return <StateCard title="CHECK IN NOW" body="The 2-minute check-in window is open. Send the request before 05:01:00." accent="#15803d" />;
     case "checked-in":
-      return (
-        <StateCard
-          title={`Day ${dayNumber} checked in`}
-          body="Nice work. Your streak is alive and tomorrow's reminder will be scheduled locally."
-          accent="#0f766e"
-        />
-      );
+      return <StateCard title={`Day ${dayNumber} checked in`} body="Nice work. Your streak is alive and tomorrow's reminder will be scheduled locally." accent="#0f766e" />;
     case "missed":
-      return (
-        <StateCard
-          title="Today's window was missed"
-          body="This challenge will settle as failed unless all required days were already completed."
-          accent="#b91c1c"
-        />
-      );
+      return <StateCard title="Today's window was missed" body="This challenge will settle as failed unless all required days were already completed." accent="#b91c1c" />;
     case "completed":
-      return (
-        <StateCard
-          title="Challenge complete"
-          body="All 7 days are done. Reward distribution happens on the next Monday at 09:00 AM PHT."
-          accent="#7c3aed"
-        />
-      );
+      return <StateCard title="Challenge complete" body="All 7 days are done. Reward distribution happens on the next Monday at 09:00 AM PHT." accent="#7c3aed" />;
     case "rewarded":
-      return (
-        <StateCard
-          title={`Reward received: ${rewardAmount} SOL`}
-          body="Deposit and rewards landed. You can immediately join the next challenge."
-          accent="#c2410c"
-        />
-      );
+      return <StateCard title={`Reward received: ${rewardAmount} SOL`} body="Deposit and rewards landed. You can immediately join the next challenge." accent="#c2410c" />;
   }
 }
 
@@ -148,6 +103,39 @@ function StateCard(props: { title: string; body: string; accent: string }) {
     <View style={[styles.card, { borderLeftColor: props.accent }]}>
       <Text style={styles.cardTitle}>{props.title}</Text>
       <Text style={styles.cardBody}>{props.body}</Text>
+    </View>
+  );
+}
+
+function formatDateTime(value?: string) {
+  if (!value) {
+    return "TBD";
+  }
+  return new Date(value).toLocaleString();
+}
+
+function CheckinRow({ item }: { item: CheckinRecord }) {
+  return (
+    <View style={styles.row}>
+      <Text style={styles.rowTitle}>Day {item.dayNumber}</Text>
+      <Text style={styles.rowMeta}>
+        {item.checkedIn ? "Checked in" : "Pending"} - {item.checkDate}
+      </Text>
+      <Text style={styles.rowMeta}>
+        {item.checkedInAt ? formatDateTime(item.checkedInAt) : "No check-in yet"}
+      </Text>
+    </View>
+  );
+}
+
+function HistoryRow({ item }: { item: ChallengeSummary }) {
+  return (
+    <View style={styles.row}>
+      <Text style={styles.rowTitle}>{item.id.slice(0, 8)}</Text>
+      <Text style={styles.rowMeta}>Status: {item.status}</Text>
+      <Text style={styles.rowMeta}>
+        {item.startTime ? formatDateTime(item.startTime) : "Not started"} to {item.endTime ? formatDateTime(item.endTime) : "TBD"}
+      </Text>
     </View>
   );
 }
@@ -161,6 +149,7 @@ export default function App() {
     connectWallet,
     setActiveChallenge,
     setHomeState,
+    setDayNumber,
   } = useAppStore();
   const [notificationState, setNotificationState] = useState<{
     permissionStatus?: string;
@@ -168,9 +157,11 @@ export default function App() {
     uploaded?: boolean;
     error?: string;
   }>({});
-  const [historyCount, setHistoryCount] = useState(0);
+  const [history, setHistory] = useState<ChallengeSummary[]>([]);
+  const [checkins, setCheckins] = useState<CheckinRecord[]>([]);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [paymentReference, setPaymentReference] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState("Ready");
 
@@ -178,7 +169,6 @@ export default function App() {
     if (!authToken) {
       return;
     }
-
     void syncChallengeState(authToken);
   }, [authToken]);
 
@@ -186,52 +176,58 @@ export default function App() {
     if (!paymentReference || !authToken) {
       return;
     }
-
     const timer = setInterval(() => {
       void pollPaymentStatus(paymentReference);
     }, 3000);
-
     void pollPaymentStatus(paymentReference);
-
     return () => clearInterval(timer);
   }, [paymentReference, authToken]);
 
   async function syncChallengeState(token: string) {
-    const [active, history] = await Promise.all([
+    const [activeResponse, historyResponse] = await Promise.all([
       getActiveChallenges(token),
       getChallengeHistory(token),
     ]);
 
-    const current = active.challenges[0] ?? null;
+    const current = activeResponse.challenges[0] ?? null;
     setActiveChallenge(current);
-    setHistoryCount(history.challenges.length);
+    setHistory(historyResponse.challenges);
+
+    if (current) {
+      const detail = await getChallengeDetail({
+        authToken: token,
+        challengeId: current.id,
+      });
+      setCheckins(detail.checkins);
+      const completedCount = detail.checkins.filter((item) => item.checkedIn).length;
+      setDayNumber(Math.min(7, Math.max(1, completedCount + (completedCount === 7 ? 0 : 1))));
+    } else {
+      setCheckins([]);
+      setDayNumber(1);
+    }
 
     if (!current) {
       setHomeState("no-active");
       return;
     }
-
     if (current.status === "pending_payment") {
       setHomeState("pending-payment");
       setPaymentReference(current.referencePubkey);
       return;
     }
-
     if (current.status === "active") {
-      setHomeState("active-countdown");
+      const completedCount = checkins.filter((item) => item.checkedIn).length;
+      setHomeState(completedCount > 0 ? "checked-in" : "active-countdown");
       return;
     }
-
     if (current.status === "completed") {
       setHomeState("completed");
       return;
     }
-
     if (current.status === "rewarded") {
       setHomeState("rewarded");
       return;
     }
-
     if (current.status === "failed") {
       setHomeState("missed");
     }
@@ -250,12 +246,10 @@ export default function App() {
         signature,
         timezone: timezoneToUse,
       });
-
       await updateTimezone({
         authToken: verified.token,
         timezone: timezoneToUse,
       });
-
       connectWallet({
         walletAddress: verified.walletAddress,
         authToken: verified.token,
@@ -277,15 +271,10 @@ export default function App() {
       Alert.alert("Connect wallet first", "A JWT is needed before creating a challenge.");
       return;
     }
-
     try {
       setIsJoining(true);
       setStatusMessage("Initiating challenge and generating Solana Pay reference");
-      const initiated = await initiateChallenge({
-        authToken,
-        timezone,
-      });
-
+      const initiated = await initiateChallenge({ authToken, timezone });
       setPaymentReference(initiated.reference);
       setActiveChallenge({
         id: initiated.challengeId,
@@ -294,6 +283,7 @@ export default function App() {
         timezone,
         referencePubkey: initiated.reference,
       });
+      setCheckins([]);
       setHomeState("pending-payment");
       setStatusMessage(`Challenge created. Waiting on reference ${initiated.reference.slice(0, 8)}...`);
     } catch (error) {
@@ -314,7 +304,6 @@ export default function App() {
         await syncChallengeState(authToken);
         return;
       }
-
       const activated = await getPaymentStatus(reference, true);
       if (activated.status === "active" && authToken) {
         setPaymentReference(null);
@@ -322,8 +311,7 @@ export default function App() {
         await syncChallengeState(authToken);
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "PAYMENT_STATUS_FAILED";
-      setStatusMessage(message);
+      setStatusMessage(error instanceof Error ? error.message : "PAYMENT_STATUS_FAILED");
     }
   }
 
@@ -331,7 +319,6 @@ export default function App() {
     try {
       const registration = await registerForPushNotificationsAsync();
       let uploaded = false;
-
       if (authToken) {
         await uploadFcmToken({
           authToken,
@@ -339,9 +326,7 @@ export default function App() {
         });
         uploaded = true;
       }
-
       await scheduleLocalCheckinReminder();
-
       setNotificationState({
         permissionStatus: registration.permissionStatus,
         devicePushToken: registration.devicePushToken,
@@ -354,6 +339,30 @@ export default function App() {
     }
   }
 
+  async function handleCheckin(demo = false) {
+    if (!authToken || !activeChallenge) {
+      return;
+    }
+    try {
+      setIsCheckingIn(true);
+      const response = await submitCheckin({
+        authToken,
+        challengeId: activeChallenge.id,
+        demo,
+      });
+      setDayNumber(response.dayNumber);
+      setStatusMessage(`Day ${response.dayNumber} check-in recorded`);
+      setHomeState("checked-in");
+      await syncChallengeState(authToken);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "CHECKIN_FAILED";
+      setStatusMessage(message);
+      Alert.alert("Check-in failed", message);
+    } finally {
+      setIsCheckingIn(false);
+    }
+  }
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
@@ -361,9 +370,7 @@ export default function App() {
         <View style={styles.hero}>
           <Text style={styles.eyebrow}>EARLY RISE CHALLENGE</Text>
           <Text style={styles.title}>Wake up early. Put 0.1 SOL on the line.</Text>
-          <Text style={styles.subtitle}>
-            A simple Expo MVP shell for the Solana-backed 7-day challenge.
-          </Text>
+          <Text style={styles.subtitle}>Expo frontend now wired to auth, challenge creation, challenge detail, history, and check-in flows.</Text>
         </View>
 
         <View style={styles.grid}>
@@ -371,59 +378,66 @@ export default function App() {
 
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Wallet</Text>
-            <Text style={styles.cardBody}>
-              {walletAddress ?? "No wallet connected yet"}
-            </Text>
+            <Text style={styles.cardBody}>{walletAddress ?? "No wallet connected yet"}</Text>
             <Text style={styles.meta}>Timezone: {timezone}</Text>
-            <Text style={styles.meta}>
-              Auth: {authToken ? "JWT ready" : "No JWT yet"}
+            <Text style={styles.meta}>Auth: {authToken ? "JWT ready" : "No JWT yet"}</Text>
+            <Text style={styles.meta}>Active challenge: {activeChallenge ? activeChallenge.status : "none"}</Text>
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Challenge Detail</Text>
+            <Text style={styles.cardBody}>
+              {activeChallenge ? `Challenge ${activeChallenge.id.slice(0, 8)} in ${activeChallenge.timezone}` : "No active challenge yet."}
             </Text>
-            <Text style={styles.meta}>
-              Active challenge: {activeChallenge ? activeChallenge.status : "none"}
-            </Text>
+            <Text style={styles.meta}>Start: {formatDateTime(activeChallenge?.startTime)}</Text>
+            <Text style={styles.meta}>End: {formatDateTime(activeChallenge?.endTime)}</Text>
+            <Text style={styles.meta}>Status: {activeChallenge?.status ?? "none"}</Text>
+            {checkins.length > 0 ? checkins.map((item) => <CheckinRow key={item.id} item={item} />) : <Text style={styles.meta}>Check-ins will appear after activation.</Text>}
+          </View>
+
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>History</Text>
+            <Text style={styles.cardBody}>Past challenges for the connected wallet.</Text>
+            {history.length > 0 ? history.map((item) => <HistoryRow key={item.id} item={item} />) : <Text style={styles.meta}>No history yet.</Text>}
           </View>
 
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Notifications</Text>
-            <Text style={styles.cardBody}>
-              Android Firebase config is wired. This flow requests permission, reads a device push token, and can upload it once real wallet JWT auth is connected.
-            </Text>
-            <Text style={styles.meta}>
-              Permission: {notificationState.permissionStatus ?? "not requested"}
-            </Text>
-            <Text style={styles.meta}>
-              Device token: {notificationState.devicePushToken ? "captured" : "not captured"}
-            </Text>
-            <Text style={styles.meta}>
-              Backend upload: {notificationState.uploaded ? "done" : "waiting for real JWT"}
-            </Text>
-            {notificationState.error ? (
-              <Text style={styles.errorText}>Last error: {notificationState.error}</Text>
-            ) : null}
+            <Text style={styles.cardBody}>Android Firebase config is wired. This flow requests permission, reads a device push token, and uploads it once JWT auth is ready.</Text>
+            <Text style={styles.meta}>Permission: {notificationState.permissionStatus ?? "not requested"}</Text>
+            <Text style={styles.meta}>Device token: {notificationState.devicePushToken ? "captured" : "not captured"}</Text>
+            <Text style={styles.meta}>Backend upload: {notificationState.uploaded ? "done" : "waiting"}</Text>
+            {notificationState.error ? <Text style={styles.errorText}>Last error: {notificationState.error}</Text> : null}
           </View>
 
           <View style={styles.card}>
             <Text style={styles.cardTitle}>Live MVP flow</Text>
             <Text style={styles.listItem}>Nonce and JWT auth request wired to Firebase Functions</Text>
             <Text style={styles.listItem}>Challenge initiate request and payment polling wired</Text>
-            <Text style={styles.listItem}>MVP auto-activation keeps Solana UI unblocked for now</Text>
-            <Text style={styles.listItem}>Challenge history count: {historyCount}</Text>
+            <Text style={styles.listItem}>Challenge detail and history screens are now live on the home page</Text>
+            <Text style={styles.listItem}>Demo check-in bypass exists so you can validate flow outside 04:59-05:01</Text>
             <Text style={styles.meta}>Status: {statusMessage}</Text>
           </View>
         </View>
 
         <View style={styles.actions}>
           <TouchableOpacity style={styles.primaryButton} onPress={handleConnectWallet}>
-            <Text style={styles.primaryButtonText}>
-              {isAuthenticating ? "Connecting..." : "Connect Wallet"}
-            </Text>
+            <Text style={styles.primaryButtonText}>{isAuthenticating ? "Connecting..." : "Connect Wallet"}</Text>
           </TouchableOpacity>
           {isAuthenticating ? <ActivityIndicator color="#132a13" /> : null}
+
           <TouchableOpacity style={styles.primaryButton} onPress={handleJoinChallenge}>
-            <Text style={styles.primaryButtonText}>
-              {isJoining ? "Creating Challenge..." : "Join Challenge"}
-            </Text>
+            <Text style={styles.primaryButtonText}>{isJoining ? "Creating Challenge..." : "Join Challenge"}</Text>
           </TouchableOpacity>
+
+          <TouchableOpacity style={styles.secondaryButton} onPress={() => void handleCheckin(false)}>
+            <Text style={styles.secondaryButtonText}>{isCheckingIn ? "Checking In..." : "Real Check-In"}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.secondaryButton} onPress={() => void handleCheckin(true)}>
+            <Text style={styles.secondaryButtonText}>Demo Check-In</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.secondaryButton} onPress={handleEnableNotifications}>
             <Text style={styles.secondaryButtonText}>Enable Notifications</Text>
           </TouchableOpacity>
@@ -502,6 +516,22 @@ const styles = StyleSheet.create({
     marginTop: 10,
     color: "#6b7280",
     fontSize: 13,
+  },
+  row: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#ece7dd",
+  },
+  rowTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1f2937",
+  },
+  rowMeta: {
+    marginTop: 4,
+    fontSize: 13,
+    color: "#6b7280",
   },
   errorText: {
     marginTop: 10,

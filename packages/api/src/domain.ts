@@ -142,6 +142,14 @@ export async function simulatePaymentConfirmation(reference: string) {
 }
 
 export async function submitCheckin(walletAddress: string, challengeId: string) {
+  return submitCheckinInternal(walletAddress, challengeId, false);
+}
+
+export async function submitDemoCheckin(walletAddress: string, challengeId: string) {
+  return submitCheckinInternal(walletAddress, challengeId, true);
+}
+
+async function submitCheckinInternal(walletAddress: string, challengeId: string, skipTimeWindow: boolean) {
   const challenge = await getChallenge(challengeId);
   if (challenge.walletAddress !== walletAddress) {
     throw new Error("FORBIDDEN");
@@ -149,7 +157,7 @@ export async function submitCheckin(walletAddress: string, challengeId: string) 
   if (challenge.status !== "active" || !challenge.startTime) {
     throw new Error("CHALLENGE_NOT_ACTIVE");
   }
-  if (!isValidCheckinTime(new Date(), challenge.timezone)) {
+  if (!skipTimeWindow && !isValidCheckinTime(new Date(), challenge.timezone)) {
     throw new Error("OUTSIDE_CHECKIN_WINDOW");
   }
 

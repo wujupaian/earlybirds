@@ -45,6 +45,8 @@ For Android Firebase app wiring, Expo reads [app.json](/Volumes/virus%20base/myp
 
 The mobile app now includes push registration helpers in [notifications.ts](/Volumes/virus%20base/myprojects/earlybirds/apps/mobile/src/notifications.ts), and the backend can send FCM messages by wallet address through [messaging.ts](/Volumes/virus%20base/myprojects/earlybirds/packages/api/src/firebase/messaging.ts).
 
+For local MVP validation, the mobile app also uses a demo check-in path that bypasses the strict 04:59-05:01 server window so the end-to-end flow can be tested outside the real wake-up slot.
+
 ## Suggested next steps
 
 1. Wire `auth/verify` to actual wallet signature validation.

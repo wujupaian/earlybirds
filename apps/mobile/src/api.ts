@@ -18,6 +18,16 @@ export type ChallengeSummary = {
   rewardAmount?: number;
 };
 
+export type CheckinRecord = {
+  id: string;
+  challengeId: string;
+  dayNumber: number;
+  checkDate: string;
+  checkedIn: boolean;
+  checkedInAt?: string;
+  createdAt: string;
+};
+
 export async function requestNonce(walletAddress: string) {
   const response = await client.post("/auth/nonce", { walletAddress });
   return response.data as { walletAddress: string; nonce: string };
@@ -129,3 +139,41 @@ export async function getChallengeHistory(authToken: string) {
   return response.data as { challenges: ChallengeSummary[] };
 }
 
+export async function getChallengeDetail(params: {
+  authToken: string;
+  challengeId: string;
+}) {
+  const response = await client.get(`/challenge/${params.challengeId}`, {
+    headers: {
+      Authorization: `Bearer ${params.authToken}`,
+    },
+  });
+
+  return response.data as {
+    challenge: ChallengeSummary;
+    checkins: CheckinRecord[];
+  };
+}
+
+export async function submitCheckin(params: {
+  authToken: string;
+  challengeId: string;
+  demo?: boolean;
+}) {
+  const response = await client.post(
+    params.demo ? "/challenge/checkin-demo" : "/challenge/checkin",
+    { challengeId: params.challengeId },
+    {
+      headers: {
+        Authorization: `Bearer ${params.authToken}`,
+      },
+    },
+  );
+
+  return response.data as {
+    success: boolean;
+    dayNumber: number;
+    streak: number;
+    remainingDays: number;
+  };
+}
