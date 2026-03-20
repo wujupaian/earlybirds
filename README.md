@@ -47,6 +47,8 @@ The mobile app now includes push registration helpers in [notifications.ts](/Vol
 
 For local MVP validation, the mobile app also uses a demo check-in path that bypasses the strict 04:59-05:01 server window so the end-to-end flow can be tested outside the real wake-up slot.
 
+The Expo client is now split into real screens using bottom-tab navigation: Home, Challenge, History, and Profile.
+
 ## Suggested next steps
 
 1. Wire `auth/verify` to actual wallet signature validation.
