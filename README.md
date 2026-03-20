@@ -49,6 +49,8 @@ For local MVP validation, the mobile app also uses a demo check-in path that byp
 
 The Expo client is now split into real screens using bottom-tab navigation: Home, Challenge, History, and Profile.
 
+The Home screen can now build a real Solana Pay URL from backend challenge-initiation data and expose a wallet-open action, while still keeping a clearly labeled demo activation path for local verification.
+
 ## Suggested next steps
 
 1. Wire `auth/verify` to actual wallet signature validation.

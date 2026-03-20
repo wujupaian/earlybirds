@@ -58,6 +58,20 @@ export function HomeScreen({ controller }: { controller: ChallengeController }) 
     }
   }
 
+  async function onOpenPayment() {
+    const result = await controller.openPaymentUrl();
+    if (!result.ok) {
+      Alert.alert("Could not open wallet", result.message);
+    }
+  }
+
+  async function onDemoActivate() {
+    const result = await controller.handleDemoActivatePayment();
+    if (!result.ok) {
+      Alert.alert("Demo activation failed", result.message);
+    }
+  }
+
   async function onEnableNotifications() {
     const result = await controller.handleEnableNotifications();
     if (!result.ok) {
@@ -89,6 +103,9 @@ export function HomeScreen({ controller }: { controller: ChallengeController }) 
           <Text style={styles.meta}>Timezone: {controller.timezone}</Text>
           <Text style={styles.meta}>Active challenge: {controller.activeChallenge?.status ?? "none"}</Text>
           <Text style={styles.meta}>Status: {controller.statusMessage}</Text>
+          <Text style={styles.meta}>
+            Pending payment URL: {controller.paymentUrl ? "ready to open" : "not ready"}
+          </Text>
         </View>
 
         <View style={styles.actions}>
@@ -101,8 +118,16 @@ export function HomeScreen({ controller }: { controller: ChallengeController }) 
             <Text style={styles.primaryButtonText}>{controller.isJoining ? "Creating Challenge..." : "Join Challenge"}</Text>
           </TouchableOpacity>
 
+          <TouchableOpacity style={styles.secondaryButton} onPress={() => void onOpenPayment()}>
+            <Text style={styles.secondaryButtonText}>Open Wallet Payment</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.secondaryButton} onPress={() => void onCheckin(false)}>
             <Text style={styles.secondaryButtonText}>{controller.isCheckingIn ? "Checking In..." : "Real Check-In"}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.secondaryButton} onPress={() => void onDemoActivate()}>
+            <Text style={styles.secondaryButtonText}>Demo Activate Payment</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.secondaryButton} onPress={() => void onCheckin(true)}>
@@ -202,4 +227,3 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 });
-
