@@ -20,6 +20,7 @@ import {
   scheduleLocalCheckinReminder,
 } from "./notifications";
 import { createSolanaPayUrl } from "./solana/payment";
+import { authenticateWithMobileWallet } from "./solana/walletAuth";
 import { useAppStore } from "./store/useAppStore";
 
 export function useChallengeController() {
@@ -121,17 +122,18 @@ export function useChallengeController() {
   }
 
   async function handleConnectWallet() {
-    const nextWalletAddress = "DemoWallet111111111111111111111111111111111";
     const timezoneToUse = Localization.getCalendars()[0]?.timeZone ?? timezone;
     setIsAuthenticating(true);
-    setStatusMessage("Requesting wallet nonce");
+    setStatusMessage("Authorizing wallet");
 
     try {
-      const nonceResponse = await requestNonce(nextWalletAddress);
-      const signature = `signed:${nonceResponse.nonce}`;
+      const signedNonce = await authenticateWithMobileWallet(async (walletAddress) => {
+        setStatusMessage("Requesting wallet nonce");
+        return requestNonce(walletAddress);
+      });
       const verified = await verifyWallet({
-        walletAddress: nextWalletAddress,
-        signature,
+        walletAddress: signedNonce.walletAddress,
+        signature: signedNonce.signature,
         timezone: timezoneToUse,
       });
       await updateTimezone({
@@ -143,7 +145,7 @@ export function useChallengeController() {
         authToken: verified.token,
         timezone: timezoneToUse,
       });
-      setStatusMessage("Wallet connected through MVP auth flow");
+      setStatusMessage("Wallet connected through signed message auth");
       await syncChallengeState(verified.token);
       return { ok: true as const };
     } catch (error) {

@@ -54,7 +54,7 @@ export type ManualPayoutRecipient = {
 
 export async function requestNonce(walletAddress: string) {
   const response = await client.post("/auth/nonce", { walletAddress });
-  return response.data as { walletAddress: string; nonce: string };
+  return response.data as { walletAddress: string; nonce: string; message: string };
 }
 
 export async function verifyWallet(params: {

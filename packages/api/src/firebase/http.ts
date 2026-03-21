@@ -43,8 +43,8 @@ export async function handleApiRequest(req: any, res: any) {
     }
 
     if (method === "POST" && path === "/auth/nonce") {
-      const nonce = await createNonce(body.walletAddress);
-      return sendJson(res, 200, { walletAddress: body.walletAddress, nonce });
+      const { nonce, message } = await createNonce(body.walletAddress);
+      return sendJson(res, 200, { walletAddress: body.walletAddress, nonce, message });
     }
 
     if (method === "POST" && path === "/auth/verify") {
@@ -56,7 +56,7 @@ export async function handleApiRequest(req: any, res: any) {
         token: signWalletToken(body.walletAddress),
         walletAddress: body.walletAddress,
         timezone: body.timezone ?? "Asia/Manila",
-        note: "Wallet signature verification remains a scaffold in this MVP.",
+        note: "Wallet signature verified.",
       });
     }
 

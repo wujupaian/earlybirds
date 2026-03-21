@@ -1,5 +1,6 @@
 import "react-native-get-random-values";
 import React from "react";
+import { Buffer } from "buffer";
 import { StatusBar } from "expo-status-bar";
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -11,6 +12,14 @@ import { ProfileScreen } from "./src/screens/ProfileScreen";
 import { useChallengeController } from "./src/useChallengeController";
 
 enableScreens();
+
+const globalBuffer = globalThis as typeof globalThis & {
+  Buffer?: typeof Buffer;
+};
+
+if (!globalBuffer.Buffer) {
+  globalBuffer.Buffer = Buffer;
+}
 
 const Tab = createBottomTabNavigator();
 

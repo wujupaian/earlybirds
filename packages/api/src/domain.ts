@@ -14,6 +14,8 @@ import {
   type User,
 } from "@earlybirds/shared";
 import { randomUUID } from "node:crypto";
+import nacl from "tweetnacl";
+import { PublicKey } from "@solana/web3.js";
 import { firestoreRepository } from "./repositories.js";
 import { sendNotificationToWallet } from "./firebase/messaging.js";
 import { getPlatformWalletAddress } from "./firebase/secrets.js";
@@ -24,6 +26,10 @@ import {
 } from "./solana.js";
 
 const paymentExpiryMinutes = 5;
+
+function buildWalletLoginMessage(nonce: string) {
+  return `Earlybirds login nonce: ${nonce}`;
+}
 
 export async function upsertUser(walletAddress: string, timezone: string): Promise<User> {
   const existing = await firestoreRepository.getUser(walletAddress);
@@ -49,7 +55,10 @@ export async function setUserFcmToken(walletAddress: string, fcmToken: string) {
 export async function createNonce(walletAddress: string) {
   const nonce = randomUUID();
   await firestoreRepository.saveNonce(walletAddress, nonce);
-  return nonce;
+  return {
+    nonce,
+    message: buildWalletLoginMessage(nonce),
+  };
 }
 
 export async function verifyWalletNonce(walletAddress: string, signature: string) {
@@ -60,6 +69,17 @@ export async function verifyWalletNonce(walletAddress: string, signature: string
   if (!signature) {
     throw new Error("INVALID_SIGNATURE");
   }
+
+  const publicKeyBytes = new PublicKey(walletAddress).toBytes();
+  const messageBytes = new TextEncoder().encode(buildWalletLoginMessage(nonce));
+  const signatureBytes = Buffer.from(signature, "base64");
+  const isValid = nacl.sign.detached.verify(messageBytes, signatureBytes, publicKeyBytes);
+
+  if (!isValid) {
+    throw new Error("INVALID_SIGNATURE");
+  }
+
+  await firestoreRepository.deleteNonce(walletAddress);
   return true;
 }
 

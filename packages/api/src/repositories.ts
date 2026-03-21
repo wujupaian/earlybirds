@@ -107,6 +107,10 @@ export const firestoreRepository = {
     return doc.exists ? (doc.data()?.nonce as string | undefined) : undefined;
   },
 
+  async deleteNonce(walletAddress: string) {
+    await authNonces.doc(walletAddress).delete();
+  },
+
   async saveChallenge(challenge: Challenge) {
     await challenges.doc(challenge.id).set(serializeChallenge(challenge), { merge: true });
     return challenge;
