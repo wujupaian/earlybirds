@@ -18,11 +18,11 @@ const earlybirdsTheme = {
   ...DefaultTheme,
   colors: {
     ...DefaultTheme.colors,
-    background: "#f5f1e8",
-    card: "#fffdf7",
-    text: "#132a13",
-    primary: "#bc6c25",
-    border: "#e9e1d3",
+    background: "#0b0b0c",
+    card: "#121213",
+    text: "#f4eee1",
+    primary: "#ffd361",
+    border: "#1f1c17",
   },
 };
 
@@ -31,22 +31,33 @@ export default function App() {
 
   return (
     <NavigationContainer theme={earlybirdsTheme}>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
       <Tab.Navigator
         screenOptions={{
           headerStyle: {
-            backgroundColor: "#132a13",
+            backgroundColor: "#0b0b0c",
           },
-          headerTintColor: "#fff8e7",
+          headerShadowVisible: false,
+          headerTitleStyle: {
+            color: "#f4eee1",
+            fontWeight: "800",
+            letterSpacing: 0.6,
+          },
+          headerTintColor: "#f4eee1",
           tabBarStyle: {
-            backgroundColor: "#fffdf7",
-            borderTopColor: "#e9e1d3",
-            height: 70,
-            paddingBottom: 10,
+            backgroundColor: "#121213",
+            borderTopColor: "#1f1c17",
+            height: 74,
+            paddingBottom: 12,
             paddingTop: 8,
           },
-          tabBarActiveTintColor: "#bc6c25",
-          tabBarInactiveTintColor: "#6b7280",
+          tabBarActiveTintColor: "#ffd361",
+          tabBarInactiveTintColor: "#7f776a",
+          tabBarLabelStyle: {
+            fontSize: 11,
+            fontWeight: "700",
+            letterSpacing: 0.4,
+          },
         }}
       >
         <Tab.Screen name="Home">{() => <HomeScreen controller={controller} />}</Tab.Screen>
